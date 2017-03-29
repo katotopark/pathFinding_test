@@ -1,178 +1,195 @@
-var matrixSize = 5;
-var locations = new Array(matrixSize);
-var locBool = new Array(matrixSize);
+function removeFromArray(arr, elt){
+	for(var i = arr.length - 1 ; i >= 0 - 1; i--){
+		if(arr[i] == elt){
+			arr.splice(i, 1);
+		}
+	}
+}
+function heuristic(a, b){
+	var d = createVector(a.i - b.i, a.j - b.j, a.k - b.k);
+	return d;
+}
+
+
+var matrixSize = 7;
 
 //unit stuff
 var unitSize = 40;
 var units_a = []
 var units_b;
+var img1, img2, img3;
+
+var grid  = [];
+var openSet = [];
+var closedSet = [];
+var start, end;
+var path = [];
+
+var a = 0;
+
+function Unit(i, j, k){
+	this.i = i;
+	this.j = j;
+	this.k = k;
+
+	this.f = 0;
+	this.g = 0;
+	this.h = 0;
+
+	this.neighbors = [];
+	this.previous = undefined;
+
+
+	this.show = function(col_){
+		push();
+		translate(i*unitSize, j*unitSize, k*unitSize);
+		//texture(tex);
+		ambientMaterial(col_);
+		scale(1);
+		box(unitSize);
+		pop();
+	}
+	this.addNeighbors = function(grid){
+		var i = this.i;
+		var j = this.j;
+		var k = this.k;
+
+		if(i > 0)
+			this.neighbors.push(grid[i-1][j][k]);
+		if(i < matrixSize-1)
+			this.neighbors.push(grid[i+1][j][k]);
+		if(j > 0)
+			this.neighbors.push(grid[i][j-1][k]);
+		if(j < matrixSize-1)
+		this.neighbors.push(grid[i][j+1][k]);
+		if(k > 0)
+			this.neighbors.push(grid[i][j][k-1]);
+		if(k < matrixSize-1)
+			this.neighbors.push(grid[i][j][k+1]);
+	}
+}
 
 function setup() {
  	createCanvas(windowWidth, windowHeight, WEBGL);
+ 	frameRate(25);
 
-	//3D array of location vectors & booleans
-	for(var i = 0; i < locations.length; i++){
-		locations[i] = new Array(matrixSize);
-		locBool[i] = new Array(matrixSize);
-		for(var j = 0; j < locations[i].length; j++){
-			locations[i][j] = new Array(matrixSize);
-			locBool[i][j] = new Array(matrixSize);
-			for(var k = 0; k < locations[i][j].length; k++){
-				locations[i][j][k] = 
-				createVector(i*unitSize, j*unitSize, k*unitSize);
-				locBool[i][j][k] = false;
+	img1 = loadImage("assets/tex_base.jpg");
+	img2 = loadImage("assets/texture2.jpg");//red
+	img3 = loadImage("assets/texture3.jpg");//green
+
+	for(var i = 0; i < matrixSize; i++){
+		grid[i] = new Array(matrixSize);
+		for(var j = 0; j < matrixSize; j++){
+			grid[i][j] = new Array(matrixSize);
+			for(var k = 0; k < matrixSize; k++){
+				grid[i][j][k] = false;
 			}
 		}
 	}
 
-	//base units
-	var threshold = 2; //decides on the percentage to be initialized
-	for (var i = 0; i < matrixSize; i++) {
+	for(var i = 0; i < matrixSize; i++){
 		for(var j = 0; j < matrixSize; j++){
 			for(var k = 0; k < matrixSize; k++){
-				stateRndm = random(10);
-				if(stateRndm <= threshold){
-					state = 1;
-					locBool[i][j][k] = true;
-				}else{
-					state = 0
-				}
-				units_a.push(new UnitOne(
-					i*unitSize,j*unitSize,k*unitSize, state));
+				grid[i][j][k] = new Unit(i, j, k);
 			}
 		}
 	}
-	units_b = new UnitTwo(); 
+
+	for(var i = 0; i < matrixSize; i++){
+		for(var j = 0; j < matrixSize; j++){
+			for(var k = 0; k < matrixSize; k++){
+				grid[i][j][k].addNeighbors(grid);
+			}
+		}
+	}
+
+	start = grid[floor(random(matrixSize-1))][floor(random(matrixSize-1))][floor(random(matrixSize-1))];
+	end = grid[floor(random(matrixSize-1))][floor(random(matrixSize-1))][floor(random(matrixSize-1))];
+
+	openSet.push(start);
 }
 
 function draw() {
 	background(20);
 	ambientLight(235);
 	orbitControl();
-	rotateX(10);
-	rotateY(-10);
-	rotateZ(0);
+	rotateX(0);
+	rotateY(a+=0.01);
+	rotateZ(1);
 
-	//center the window and display the units
-	push();
-	translate(-unitSize*matrixSize/2, -unitSize*matrixSize/2, 0);
-	for(var i = 0; i < units_a.length; i++){
-		units_a[i].display();
-	}
-	units_b.display();
-	units_b.update();
-	units_b.move();
-	pop();
-}
-
-function UnitOne (x, y, z, state){
-	this.x = x;
-	this.y = y;
-	this.z = z;
-	this.state = state;
-
-	//this.img = loadImage("assets/tex_1.jpg");
-
-	//basic movement parameters
-	this.acceleration = createVector();
-	this.velocity = createVector();
-	this.location = createVector(this.x, this.y, this.z);
-
-
-	this.update = function(){
-		this.velocity.add(this.acceleration);
-		this.location.add(this.velocity);
-		this.acceleration.mult(0);
-	}
-
-	this.display = function(){
-		if(this.state == 1){
-			push();
-			scale(1);
-			//texture(this.img);
-			ambientMaterial(50, 200, 100, 20);
-			translate(this.x, this.y, this.z);
-			box(unitSize);
-			pop();
+	if(openSet.length > 0){
+		//keep going
+		var winner = 0;
+		for(var i = 0; i < openSet.length; i++){
+			if(openSet[i].f < openSet[winner].f){
+				winner = i;
+			}
 		}
-	}
-}
+		var current = openSet[winner];
 
-function UnitTwo() {
-	//assign random initial location
-	this.selector;
-	for(var i = 0; i < locations.length; i++){
-		for(var j = 0; j < locations[i].length; j++){
-			for(var k = 0; k < locations[i][j].length; k++){
-				this.selector = createVector(
-					floor(random(i))*unitSize, 
-					floor(random(j))*unitSize, 
-					floor(random(k))*unitSize);
+		//Find the path
+		path = [];
+		var temp = current;
+		path.push(temp);
+		while(temp.previous){
+			path.push(temp.previous);
+			temp = temp.previous;
+		}
+
+		if(current === end){
+			//noLoop();
+			console.log("DONE!");
+		}
+
+		removeFromArray(openSet, current);
+		closedSet.push(current);
+
+		var neighbors = current.neighbors;
+		for(var i = 0; i < neighbors.length; i++){
+			var neighbor = neighbors[i];
+
+			if(!closedSet.includes(neighbor)){
+				var tempG = current.g + 1;
+
+				if(openSet.includes(neighbor)){
+					if(tempG < neighbor.g){
+						neighbor.g = tempG;
+					}
+				}else{
+					neighbor.g = tempG;
+					openSet.push(neighbor);
+				}
+
+				neighbor.h = heuristic(neighbor, end);
+				neighbor.f = neighbor.g + neighbor.h;
+				neighbor.previous = current;
+			}
+		}
+	}else{
+		console.log("FIN");
+	}
+
+	//raw grid
+	for(var i = 0; i < matrixSize; i++){
+		for(var j = 0; j < matrixSize; j++){
+			for(var k = 0; k < matrixSize; k++){
+				grid[i][j][k].show(color(150, 5));
 			}
 		}
 	}
-	print(this.selector);
 
-	//assign random target 
-	this.targetSelector;
-	for(var i = 0; i < locations.length; i++){
-		for(var j = 0; j < locations[i].length; j++){
-			for(var k = 0; k < locations[i][j].length; k++){
-				this.targetSelector = createVector(
-					floor(random(i))*unitSize, 
-					floor(random(j))*unitSize, 
-					floor(random(k))*unitSize);
-			}
-		}
-	}
-	print(this.targetSelector);
-
-	//basic movement parameters
-	this.location = createVector(
-					this.selector.x,
-					this.selector.y,
-					this.selector.z);
-	this.acceleration = createVector();
-	this.velocity = createVector();
-
-	this.maxSpeed = 1;
-	this.maxForce = 2;
-
-	//this.img = loadImage("assets/tex_2.jpg");
-
-	this.display = function(){
-		push();
-		//texture(this.img);
-		ambientMaterial(200, 100, 40);
-		translate(this.location.x, 
-				this.location.y, this.location.z);
-		scale(1);
-		box(unitSize);
-		pop();
+	//closed - red
+	for(var i = 0; i < closedSet.length; i++){
+		closedSet[i].show(color(255, 0, 100, 5));
 	}
 
-	this.update = function(){
-		this.velocity.add(this.acceleration);
-		this.location.add(this.velocity);
-		this.acceleration.mult(0);
+	//open - green
+	for(var i = 0; i < openSet.length; i++){
+		openSet[i].show(color(0, 255, 0, 20));
 	}
-}
 
-UnitTwo.prototype.move = function(){
-	var target = createVector(this.targetSelector.x,
-							  this.targetSelector.y,
-							  this.targetSelector.z);
-	var desired = p5.Vector.sub(target, this.location);
-
-	var d = desired.mag();
-
-	//check the distance to slow down
-	if (d < unitSize/2)
-		desired.setMag(this.maxSpeed/2);
-	else
-		desired.setMag(this.maxSpeed);
-	
-	var steer = p5.Vector.sub(desired, this.velocity);
-	steer.limit(this.maxForce);
-	this.acceleration.add(steer);
+	//path - blue
+	for(var i = 0; i < path.length; i++){
+		path[i].show(color(0, 100, 255, 120));
+	}
 }

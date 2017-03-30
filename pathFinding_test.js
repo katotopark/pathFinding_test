@@ -24,6 +24,10 @@ var openSet = [];
 var closedSet = [];
 var start, end;
 var path = [];
+var noSolution = false;
+
+var wallTH = 0.1;
+var wallCol, openCol, closedCol, pathCol;
 
 var a = 0;
 
@@ -38,6 +42,11 @@ function Unit(i, j, k){
 
 	this.neighbors = [];
 	this.previous = undefined;
+	this.wall = false;
+
+	if(random(1) < wallTH){
+		this.wall = true;
+	}
 
 
 	this.show = function(col_){
@@ -45,6 +54,10 @@ function Unit(i, j, k){
 		translate(i*unitSize, j*unitSize, k*unitSize);
 		//texture(tex);
 		ambientMaterial(col_);
+		if(this.wall){
+			ambientMaterial(wallCol);
+		}
+		
 		scale(1);
 		box(unitSize);
 		pop();
@@ -73,9 +86,15 @@ function setup() {
  	createCanvas(windowWidth, windowHeight, WEBGL);
  	frameRate(25);
 
-	img1 = loadImage("assets/tex_base.jpg");
-	img2 = loadImage("assets/texture2.jpg");//red
-	img3 = loadImage("assets/texture3.jpg");//green
+	rawCol = color(150, 5);
+	closedCol = color(255, 0, 100, 5);
+	openCol = color(0, 255, 0, 20);
+	pathCol = color(0, 100, 255, 120);
+	wallCol = color(180, 40, 0, 50);
+
+	// img1 = loadImage("assets/tex_base.jpg");
+	// img2 = loadImage("assets/texture2.jpg");//red
+	// img3 = loadImage("assets/texture3.jpg");//green
 
 	for(var i = 0; i < matrixSize; i++){
 		grid[i] = new Array(matrixSize);
@@ -105,6 +124,9 @@ function setup() {
 
 	start = grid[floor(random(matrixSize-1))][floor(random(matrixSize-1))][floor(random(matrixSize-1))];
 	end = grid[floor(random(matrixSize-1))][floor(random(matrixSize-1))][floor(random(matrixSize-1))];
+	start.wall = false;
+	end.wall = false;
+	console.log(start, end);
 
 	openSet.push(start);
 }
@@ -125,20 +147,11 @@ function draw() {
 				winner = i;
 			}
 		}
+
 		var current = openSet[winner];
-
-		//Find the path
-		path = [];
-		var temp = current;
-		path.push(temp);
-		while(temp.previous){
-			path.push(temp.previous);
-			temp = temp.previous;
-		}
-
 		if(current === end){
-			//noLoop();
-			console.log("DONE!");
+			console.log("GOT IT!");
+			// noLoop();
 		}
 
 		removeFromArray(openSet, current);
@@ -148,7 +161,7 @@ function draw() {
 		for(var i = 0; i < neighbors.length; i++){
 			var neighbor = neighbors[i];
 
-			if(!closedSet.includes(neighbor)){
+			if(!closedSet.includes(neighbor) && !neighbor.wall){
 				var tempG = current.g + 1;
 
 				if(openSet.includes(neighbor)){
@@ -166,30 +179,47 @@ function draw() {
 			}
 		}
 	}else{
-		console.log("FIN");
+		console.log("NO SOLUTION");
+		noSolution = true;
+		noLoop();
 	}
 
 	//raw grid
 	for(var i = 0; i < matrixSize; i++){
 		for(var j = 0; j < matrixSize; j++){
 			for(var k = 0; k < matrixSize; k++){
-				grid[i][j][k].show(color(150, 5));
+				grid[i][j][k].show(rawCol);
 			}
 		}
 	}
 
 	//closed - red
 	for(var i = 0; i < closedSet.length; i++){
-		closedSet[i].show(color(255, 0, 100, 5));
+		closedSet[i].show(closedCol);
 	}
 
 	//open - green
 	for(var i = 0; i < openSet.length; i++){
-		openSet[i].show(color(0, 255, 0, 20));
+		openSet[i].show(openCol);
+	}
+
+	//Find the path
+	if(!noSolution){
+		path = [];
+		var temp = current;
+		path.push(temp);
+		while(temp.previous){
+			path.push(temp.previous);
+			temp = temp.previous;
+		}
 	}
 
 	//path - blue
 	for(var i = 0; i < path.length; i++){
-		path[i].show(color(0, 100, 255, 120));
+		path[i].show(pathCol);
 	}
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
 }
